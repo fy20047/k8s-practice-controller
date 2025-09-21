@@ -1,0 +1,30 @@
+# Service 部分 -> 把 Pod 對外公開
+apiVersion: v1          # Service 屬於核心組件，用 v1 API
+kind: Service           # 資源種類是 Service
+
+metadata:
+  name: hello-svc       # Service 的名稱，kubectl get svc 時會看到
+
+spec:                   # Service 的規格
+  type: NodePort        # Service 類型：NodePort 會把 Pod 暴露到叢集外部
+  selector:             # 要把流量導向哪些 Pod？
+    app: hello          # 匹配所有帶有 app=hello 標籤的 Pod（對應上面 Deployment）
+  ports:                # Service 的埠號設定
+  - port: 80            # Service 對外提供的服務 port（ClusterIP 內部）
+    targetPort: 80      # Pod 容器內的目標 port（nginx 的 80）
+    nodePort: 30080     # 節點對外開放的 port（必須在 30000–32767 之間）
+---
+  #  連線示意圖：
+  #
+  #  瀏覽器 / curl (http://localhost:30080)
+  #                │
+  #                ▼
+  #       [ Service: hello-svc ]
+  #           type=NodePort
+  #           port=30080 -> Pod:80
+  #                │
+  #      -------------------------
+  #      │                       │
+  #      ▼                       ▼
+  # [ Pod1: nginx ]        [ Pod2: nginx ]
+  #     80 port                 80 port
