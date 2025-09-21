@@ -1,7 +1,7 @@
 # Deployment 部分 -> 用來建立/管理 Pod
 apiVersion: apps/v1     # 使用的 API 版本，Deployment 屬於 apps/v1
 kind: Deployment        # 資源的種類是 Deployment
-
+    
 metadata:               # 資源的基本資訊（名字、標籤）
   name: hello-deploy    # 這個 Deployment 的名稱，kubectl get deployment 時會看到
 
