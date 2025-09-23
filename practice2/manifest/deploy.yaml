@@ -1,0 +1,20 @@
+# 這個 deployment 是用來把 client（main.go）部署到 cluster 內跑
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-apps
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app : hello-apps
+  template:
+    metadata:
+      labels:
+        app : hello-apps # 用來 match 這個 Deployment 自己的 Pod
+    spec:
+      serviceAccountName: dm-incluster # 用這個 SA 的身份去呼叫 K8s API
+      containers:
+        - name: hello-apps
+          image: fy20047/incluster:latest
+          imagePullPolicy: IfNotPresent
