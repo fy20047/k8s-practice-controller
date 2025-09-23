@@ -18,3 +18,12 @@ spec:
         - name: hello-apps
           image: fy20047/incluster:latest
           imagePullPolicy: IfNotPresent
+          env:
+            - name: POD_NAME
+              valueFrom: 
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef: 
+                  fieldPath: metadata.namespace

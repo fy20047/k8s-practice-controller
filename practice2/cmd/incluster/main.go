@@ -32,6 +32,7 @@ func main() {
 	// outside-cluster = false：程式跑在 K8s Pod 內，透過 ServiceAccount 連 API Server
 	outsideCluster := flag.Bool("outside-cluster", false, "set to true when run out of cluster. (default: false)")
 	flag.Parse()
+	namespace = getNamespace()
 
 	// 建立 clientset
 	var clientset *kubernetes.Clientset
@@ -100,17 +101,56 @@ func main() {
 	deleteService(clientset, sm)
 }
 
+func boolp(b bool) *bool { return &b }
+
+func getNamespace() string {
+    if ns := os.Getenv("POD_NAMESPACE"); ns != "" {
+        return ns
+    }
+    // in-cluster fallback
+    if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+        return string(data)
+    }
+    return "default"
+}
+
+func ownerRefForSelf(ctx context.Context, client kubernetes.Interface, ns string) (*metav1.OwnerReference, error) {
+    podName := os.Getenv("POD_NAME")
+    if podName == "" {
+        if h, _ := os.Hostname(); h != "" { podName = h }
+    }
+    if podName == "" { return nil, fmt.Errorf("cannot determine pod name") }
+
+    pod, err := client.CoreV1().Pods(ns).Get(ctx, podName, metav1.GetOptions{})
+    if err != nil { return nil, fmt.Errorf("get self pod: %w", err) }
+
+    return &metav1.OwnerReference{
+        APIVersion: "v1",
+        Kind:       "Pod",
+        Name:       pod.Name,
+        UID:        pod.UID,
+        Controller: boolp(true),
+        BlockOwnerDeletion: boolp(true),
+    }, nil
+}
+
 // 很多規格要 *int32
 func int32Ptr(i int32) *int32 { return &i }
 
 // 這邊用 Go struct 定義 Deployment（程式碼版ㄉ YAML），再用 clientset.Create() 丟給 API Server
 func createDeployment(client kubernetes.Interface) *appv1.Deployment {
+	ctx := context.Background()
+    owner, err := ownerRefForSelf(ctx, client, namespace)
+    if err != nil { panic(err) }
+
 	dm := &appv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "hello-app1",   // Deployment 名稱
+			Namespace: namespace,
 			Labels: map[string]string{
 				"fy20047-k8s": "practice2",
 			},
+			OwnerReferences: []metav1.OwnerReference{*owner},
 		},
 		Spec: appv1.DeploymentSpec{
 			Replicas: int32Ptr(1),           // 副本數
@@ -185,13 +225,19 @@ var portnum int32 = 80
 // 建立 Service
 // 建一個 NodePort Service，selector 對到 Pod 的 labels，把外部 nodeIP:nodePort → Pod:80
 func createService(client kubernetes.Interface) *corev1.Service {
+	ctx := context.Background()
+    owner, err := ownerRefForSelf(ctx, client, namespace)
+    if err != nil { panic(err) }
+	
 	sm := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "hello-service",
+			Namespace: namespace,
 			Labels: map[string]string{
 				// 統一貼上同一組 label（方便檢查/分類）
 				"fy20047-k8s": "practice2",
 			},
+			OwnerReferences: []metav1.OwnerReference{*owner},
 		},
 		Spec: corev1.ServiceSpec{
 			// selector 要對到 Pod 的 labels
